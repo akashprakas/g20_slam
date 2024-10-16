@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.20)
 project(g2oSlamExample)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -28,14 +28,15 @@ set(SOURCES
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Link G2O and Eigen libraries to your project
-# target_link_libraries(${PROJECT_NAME} PUBLIC  g2o_core g2o_stuff g2o_solver_eigen)
+target_link_libraries(${PROJECT_NAME} PUBLIC  g2o::core  g2o::solver_eigen g2o::stuff  ${EIGEN3_LIBRARIES}) 
 
-target_link_libraries(${PROJECT_NAME} 
-    ${g2o_CORE_LIBRARY} 
-    ${g2o_STUFF_LIBRARY}
-    ${g2o_SOLVER_CSPARSE}  # Add any additional solvers you need here
-    ${g2o_SOLVER_DENSE}    # For example, CSPARSE and DENSE
-    ${g2o_TYPES_SLAM2D}    # Add types as per your application
-    ${g2o_TYPES_SLAM3D}
-    ${EIGEN3_LIBRARIES}
-)
+# target_link_libraries(${PROJECT_NAME} 
+#     ${g2o_CORE_LIBRARY} 
+#     ${g2o_STUFF_LIBRARY}
+#     ${g2o_SOLVER_CSPARSE}  # Add any additional solvers you need here
+#     ${g2o_SOLVER_DENSE}    # For example, CSPARSE and DENSE
+#     ${g2o_TYPES_SLAM2D}    # Add types as per your application
+#     ${g2o_TYPES_SLAM3D}
+#     ${EIGEN3_LIBRARIES}
+#     ${g2o_SOLVER_EIGEN}  
+# )

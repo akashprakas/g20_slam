@@ -1,6 +1,7 @@
 // #include "edge_se2.h"
 // #include "se2.h"
 // #include "vertex_se2.h"
+#include <cstddef>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -11,11 +12,19 @@
 #include <Eigen/Geometry>
 #include <cassert>
 
-#include "g2o/core/base_binary_edge.h"
-#include "g2o/core/base_vertex.h"
-#include "g2o/core/hyper_graph_action.h"
-#include "g2o/stuff/macros.h"
-#include "g2o/stuff/misc.h"
+#include <g2o/config.h>
+#include <g2o/core/base_binary_edge.h>
+#include <g2o/core/base_vertex.h>
+#include <g2o/core/hyper_graph_action.h>
+#include <g2o/stuff/macros.h>
+#include <g2o/stuff/misc.h>
+
+#include <g2o/core/block_solver.h>
+#include <g2o/core/factory.h>
+#include <g2o/core/optimization_algorithm_factory.h>
+#include <g2o/core/optimization_algorithm_gauss_newton.h>
+#include <g2o/core/sparse_optimizer.h>
+#include <g2o/solvers/eigen/linear_solver_eigen.h>
 
 class SE2 {
 public:
@@ -99,6 +108,17 @@ public:
     SE2 up(update[0], update[1], update[2]);
     _estimate *= up;
   }
+  virtual bool read(std::istream &is) {
+    Eigen::Vector3d p;
+    is >> p[0] >> p[1] >> p[2];
+    _estimate.fromVector(p);
+    return true;
+  };
+  virtual bool write(std::ostream &os) const {
+    Eigen::Vector3d p = estimate().toVector();
+    os << p[0] << " " << p[1] << " " << p[2];
+    return os.good();
+  };
 };
 
 class EdgeSE2 : public g2o::BaseBinaryEdge<3, SE2, VertexSE2, VertexSE2> {
@@ -179,6 +199,33 @@ int main() {
       edges.push_back(temp);
     }
   }
+
+  typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> SlamBlockSolver;
+  typedef g2o::LinearSolverEigen<SlamBlockSolver::PoseMatrixType>
+      SlamLinearSolver;
+
+  // // allocating the optimizer
+
+  g2o::SparseOptimizer optimizer;
+  auto linearSolver = std::make_unique<SlamLinearSolver>();
+  linearSolver->setBlockOrdering(false);
+  g2o::OptimizationAlgorithmGaussNewton *solver =
+      new g2o::OptimizationAlgorithmGaussNewton(
+          std::make_unique<SlamBlockSolver>(std::move(linearSolver)));
+
+  optimizer.setAlgorithm(solver);
+
+  std::cout << "Adding vertex" << std::endl;
+
+  for (size_t i = 0; i < vertices.size(); ++i) {
+    const VertexHolder &vertex = vertices[i];
+    SE2 temp{vertex.x, vertex.y, vertex.theta};
+    VertexSE2 *robot = new VertexSE2;
+    robot->setId(vertex.id);
+    robot->setEstimate(temp);
+    optimizer.addVertex(robot);
+  }
+  std::cerr << "Optimization: Adding odometry measurements ... ";
 
   std::cout << "demo" << std::endl;
 }
