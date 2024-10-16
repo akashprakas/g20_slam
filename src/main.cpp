@@ -124,7 +124,7 @@ public:
 class EdgeSE2 : public g2o::BaseBinaryEdge<3, SE2, VertexSE2, VertexSE2> {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  EdgeSE2();
+  EdgeSE2() : BaseBinaryEdge<3, SE2, VertexSE2, VertexSE2>(){};
 
   void computeError() {
     const VertexSE2 *v1 = static_cast<const VertexSE2 *>(_vertices[0]);
@@ -138,6 +138,29 @@ public:
     _measurement = m;
     _inverseMeasurement = m.inverse();
   }
+
+  virtual bool read(std::istream &is) {
+    Eigen::Vector3d p;
+    is >> p[0] >> p[1] >> p[2];
+    _measurement.fromVector(p);
+    _inverseMeasurement = measurement().inverse();
+    for (int i = 0; i < 3; ++i)
+      for (int j = i; j < 3; ++j) {
+        is >> information()(i, j);
+        if (i != j)
+          information()(j, i) = information()(i, j);
+      }
+    return true;
+  };
+
+  virtual bool write(std::ostream &os) const {
+    Eigen::Vector3d p = measurement().toVector();
+    os << p.x() << " " << p.y() << " " << p.z();
+    for (int i = 0; i < 3; ++i)
+      for (int j = i; j < 3; ++j)
+        os << " " << information()(i, j);
+    return os.good();
+  };
 
 protected:
   SE2 _inverseMeasurement;
@@ -227,5 +250,37 @@ int main() {
   }
   std::cerr << "Optimization: Adding odometry measurements ... ";
 
+  for (size_t i = 0; i < edges.size(); ++i) {
+    const auto &edge = edges[i];
+    SE2 tranformation{edge.dx, edge.dy, edge.dtheta};
+    Eigen::Matrix3d information;
+
+    information(0, 0) = edge.i11;
+    information(0, 1) = edge.i12;
+    information(0, 2) = edge.i13;
+    information(1, 0) = edge.i12;
+    information(1, 1) = edge.i22;
+    information(1, 2) = edge.i23;
+    information(2, 0) = edge.i13;
+    information(2, 1) = edge.i23;
+    information(2, 2) = edge.i33;
+
+    EdgeSE2 *odometry = new EdgeSE2;
+    odometry->vertices()[0] = optimizer.vertex(edge.from);
+    odometry->vertices()[1] = optimizer.vertex(edge.to);
+    odometry->setMeasurement(tranformation);
+    odometry->setInformation(information);
+    optimizer.addEdge(odometry);
+  }
+
   std::cout << "demo" << std::endl;
 }
+
+// struct EdgeHolder {
+//   int from;
+//   int to;
+//   float dx;
+//   float dy;
+//   float dtheta;
+//   float i11, i12, i13, i22, i23, i33;
+// };
