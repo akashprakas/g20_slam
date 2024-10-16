@@ -272,8 +272,26 @@ int main() {
     odometry->setInformation(information);
     optimizer.addEdge(odometry);
   }
+  // dump initial state to the disk
+  optimizer.save("tutorial_before.g2o");
 
-  std::cout << "demo" << std::endl;
+  VertexSE2 *firstRobotPose = dynamic_cast<VertexSE2 *>(optimizer.vertex(0));
+  firstRobotPose->setFixed(true);
+  optimizer.setVerbose(true);
+
+  std::cerr << "Optimizing" << std::endl;
+  std::cout << "Initial chi2: " << optimizer.chi2() << std::endl;
+  optimizer.initializeOptimization();
+  optimizer.optimize(100);
+  std::cout << "Final chi2: " << optimizer.chi2() << std::endl;
+  std::cerr << "done." << std::endl;
+
+  optimizer.save("tutorial_after.g2o");
+
+  // freeing the graph memory
+  optimizer.clear();
+
+  return 0;
 }
 
 // struct EdgeHolder {
