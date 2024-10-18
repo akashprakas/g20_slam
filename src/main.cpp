@@ -223,7 +223,7 @@ int main() {
     }
   }
 
-  typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> SlamBlockSolver;
+  typedef g2o::BlockSolver<g2o::BlockSolverTraits<3, 3>> SlamBlockSolver;
   typedef g2o::LinearSolverEigen<SlamBlockSolver::PoseMatrixType>
       SlamLinearSolver;
 
@@ -256,13 +256,13 @@ int main() {
     Eigen::Matrix3d information;
 
     information(0, 0) = edge.i11;
-    information(0, 1) = edge.i12;
-    information(0, 2) = edge.i13;
-    information(1, 0) = edge.i12;
+    information(0, 1) = 0;
+    information(0, 2) = 0;
+    information(1, 0) = 0;
     information(1, 1) = edge.i22;
-    information(1, 2) = edge.i23;
-    information(2, 0) = edge.i13;
-    information(2, 1) = edge.i23;
+    information(1, 2) = 0;
+    information(2, 0) = 0;
+    information(2, 1) = 0;
     information(2, 2) = edge.i33;
 
     EdgeSE2 *odometry = new EdgeSE2;
@@ -282,7 +282,7 @@ int main() {
   std::cerr << "Optimizing" << std::endl;
   std::cout << "Initial chi2: " << optimizer.chi2() << std::endl;
   optimizer.initializeOptimization();
-  optimizer.optimize(100);
+  optimizer.optimize(10);
   std::cout << "Final chi2: " << optimizer.chi2() << std::endl;
   std::cerr << "done." << std::endl;
 
