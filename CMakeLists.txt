@@ -18,25 +18,9 @@ find_package(Eigen3 REQUIRED)
 # Include directories for G2O and Eigen
 include_directories(${EIGEN3_INCLUDE_DIR})
 
-# Add source files (your C++ files)
-set(SOURCES
-    src/main.cpp
-
-)
-
 # Create the executable target
-add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(${PROJECT_NAME} main.cpp se2.h vertex_se2.h vertex_se2.cpp edge_se2.h edge_se2.cpp)
 
 # Link G2O and Eigen libraries to your project
 target_link_libraries(${PROJECT_NAME} PUBLIC  g2o::core  g2o::solver_eigen g2o::stuff  ${EIGEN3_LIBRARIES}) 
 
-# target_link_libraries(${PROJECT_NAME} 
-#     ${g2o_CORE_LIBRARY} 
-#     ${g2o_STUFF_LIBRARY}
-#     ${g2o_SOLVER_CSPARSE}  # Add any additional solvers you need here
-#     ${g2o_SOLVER_DENSE}    # For example, CSPARSE and DENSE
-#     ${g2o_TYPES_SLAM2D}    # Add types as per your application
-#     ${g2o_TYPES_SLAM3D}
-#     ${EIGEN3_LIBRARIES}
-#     ${g2o_SOLVER_EIGEN}  
-# )

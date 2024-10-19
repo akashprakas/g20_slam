@@ -1,6 +1,3 @@
-// #include "edge_se2.h"
-// #include "se2.h"
-// #include "vertex_se2.h"
 #include <cstddef>
 #include <fstream>
 #include <iostream>
@@ -26,145 +23,52 @@
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 
-class SE2 {
-public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  SE2() : _R(0), _t(0, 0) {}
+#include "edge_se2.h"
+#include "se2.h"
+#include "vertex_se2.h"
 
-  SE2(double x, double y, double theta) : _R(theta), _t(x, y) {}
+#include <fstream>
 
-  const Eigen::Vector2d &translation() const { return _t; }
-
-  Eigen::Vector2d &translation() { return _t; }
-
-  const Eigen::Rotation2Dd &rotation() const { return _R; }
-
-  Eigen::Rotation2Dd &rotation() { return _R; }
-
-  SE2 operator*(const SE2 &tr2) const {
-    SE2 result(*this);
-    result._t += _R * tr2._t;
-    result._R.angle() += tr2._R.angle();
-    result._R.angle() = g2o::normalize_theta(result._R.angle());
-    return result;
+void saveGraph(const g2o::SparseOptimizer &optimizer,
+               const std::string &filename) {
+  std::ofstream outFile(filename);
+  if (!outFile.is_open()) {
+    std::cerr << "Failed to open file for writing: " << filename << std::endl;
+    return;
   }
 
-  SE2 &operator*=(const SE2 &tr2) {
-    _t += _R * tr2._t;
-    _R.angle() += tr2._R.angle();
-    _R.angle() = g2o::normalize_theta(_R.angle());
-    return *this;
-  }
-
-  Eigen::Vector2d operator*(const Eigen::Vector2d &v) const {
-    return _t + _R * v;
-  }
-
-  SE2 inverse() const {
-    SE2 ret;
-    ret._R = _R.inverse();
-    ret._R.angle() = g2o::normalize_theta(ret._R.angle());
-    ret._t = ret._R * (Eigen::Vector2d(-1 * _t));
-    return ret;
-  }
-
-  double operator[](int i) const {
-    assert(i >= 0 && i < 3);
-    if (i < 2)
-      return _t(i);
-    return _R.angle();
-  }
-
-  double &operator[](int i) {
-    assert(i >= 0 && i < 3);
-    if (i < 2)
-      return _t(i);
-    return _R.angle();
-  }
-
-  void fromVector(const Eigen::Vector3d &v) { *this = SE2(v[0], v[1], v[2]); }
-
-  Eigen::Vector3d toVector() const {
-    Eigen::Vector3d ret;
-    for (int i = 0; i < 3; i++) {
-      ret(i) = (*this)[i];
+  // Save vertices
+  for (const auto &vertexPair : optimizer.vertices()) {
+    const auto *vertex = dynamic_cast<const VertexSE2 *>(vertexPair.second);
+    if (vertex) {
+      outFile << "VERTEX_SE2 " << vertex->id() << " "
+              << vertex->estimate().translation().x() << " "
+              << vertex->estimate().translation().y() << " "
+              << vertex->estimate().rotation().angle() << std::endl;
     }
-    return ret;
   }
 
-protected:
-  Eigen::Rotation2Dd _R;
-  Eigen::Vector2d _t;
-};
-
-class VertexSE2 : public g2o::BaseVertex<3, SE2> {
-public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  VertexSE2() : g2o::BaseVertex<3, SE2>(){};
-
-  virtual void setToOriginImpl() { _estimate = SE2(); }
-
-  virtual void oplusImpl(const double *update) {
-    SE2 up(update[0], update[1], update[2]);
-    _estimate *= up;
-  }
-  virtual bool read(std::istream &is) {
-    Eigen::Vector3d p;
-    is >> p[0] >> p[1] >> p[2];
-    _estimate.fromVector(p);
-    return true;
-  };
-  virtual bool write(std::ostream &os) const {
-    Eigen::Vector3d p = estimate().toVector();
-    os << p[0] << " " << p[1] << " " << p[2];
-    return os.good();
-  };
-};
-
-class EdgeSE2 : public g2o::BaseBinaryEdge<3, SE2, VertexSE2, VertexSE2> {
-public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-  EdgeSE2() : BaseBinaryEdge<3, SE2, VertexSE2, VertexSE2>(){};
-
-  void computeError() {
-    const VertexSE2 *v1 = static_cast<const VertexSE2 *>(_vertices[0]);
-    const VertexSE2 *v2 = static_cast<const VertexSE2 *>(_vertices[1]);
-    SE2 delta =
-        _inverseMeasurement * (v1->estimate().inverse() * v2->estimate());
-    _error = delta.toVector();
-  }
-
-  void setMeasurement(const SE2 &m) {
-    _measurement = m;
-    _inverseMeasurement = m.inverse();
-  }
-
-  virtual bool read(std::istream &is) {
-    Eigen::Vector3d p;
-    is >> p[0] >> p[1] >> p[2];
-    _measurement.fromVector(p);
-    _inverseMeasurement = measurement().inverse();
-    for (int i = 0; i < 3; ++i)
-      for (int j = i; j < 3; ++j) {
-        is >> information()(i, j);
-        if (i != j)
-          information()(j, i) = information()(i, j);
+  // Save edges
+  for (const auto &edge : optimizer.edges()) {
+    const auto *edgeSE2 = dynamic_cast<const EdgeSE2 *>(edge);
+    if (edgeSE2) {
+      outFile << "EDGE_SE2 " << edgeSE2->vertices()[0]->id() << " "
+              << edgeSE2->vertices()[1]->id() << " "
+              << edgeSE2->measurement().translation().x() << " "
+              << edgeSE2->measurement().translation().y() << " "
+              << edgeSE2->measurement().rotation().angle() << " ";
+      for (int i = 0; i < 3; ++i) {
+        for (int j = i; j < 3; ++j) {
+          outFile << edgeSE2->information()(i, j) << " ";
+        }
       }
-    return true;
-  };
+      outFile << std::endl;
+    }
+  }
 
-  virtual bool write(std::ostream &os) const {
-    Eigen::Vector3d p = measurement().toVector();
-    os << p.x() << " " << p.y() << " " << p.z();
-    for (int i = 0; i < 3; ++i)
-      for (int j = i; j < 3; ++j)
-        os << " " << information()(i, j);
-    return os.good();
-  };
-
-protected:
-  SE2 _inverseMeasurement;
-};
+  outFile.close();
+  std::cout << "Graph saved to " << filename << std::endl;
+}
 
 struct VertexHolder {
   int id;
@@ -273,7 +177,8 @@ int main() {
     optimizer.addEdge(odometry);
   }
   // dump initial state to the disk
-  optimizer.save("tutorial_before.g2o");
+  // optimizer.save("tutorial_before.g2o");
+  saveGraph(optimizer, "before_optimization.g2o");
 
   VertexSE2 *firstRobotPose = dynamic_cast<VertexSE2 *>(optimizer.vertex(0));
   firstRobotPose->setFixed(true);
@@ -286,19 +191,10 @@ int main() {
   std::cout << "Final chi2: " << optimizer.chi2() << std::endl;
   std::cerr << "done." << std::endl;
 
-  optimizer.save("tutorial_after.g2o");
+  saveGraph(optimizer, "after_optimization.g2o");
 
   // freeing the graph memory
   optimizer.clear();
 
   return 0;
 }
-
-// struct EdgeHolder {
-//   int from;
-//   int to;
-//   float dx;
-//   float dy;
-//   float dtheta;
-//   float i11, i12, i13, i22, i23, i33;
-// };
